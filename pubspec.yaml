@@ -1,4 +1,4 @@
-name: finder
+name: mobile_app
 description: FINDER - Campus Lost & Found App (Flutter, MVVM)
 publish_to: 'none'
 version: 1.0.0+1
