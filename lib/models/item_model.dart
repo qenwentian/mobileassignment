@@ -60,7 +60,6 @@ class ItemModel {
   }
 }
 
-/// A building pin on the campus map (dx/dy are 0..1 fractions of the map).
 class CampusPin {
   final String id;
   final String room;
