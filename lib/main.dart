@@ -29,7 +29,6 @@ class FinderApp extends StatelessWidget {
         title: 'FINDER',
         debugShowCheckedModeBanner: false,
         theme: buildTheme(),
-        // Authentication guard: unauthenticated users only ever see Login/Sign Up.
         home: Consumer<AuthViewModel>(
           builder: (_, auth, __) =>
               auth.isAuthenticated ? const MainShell() : const LoginScreen(),
