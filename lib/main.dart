@@ -34,7 +34,6 @@ class FinderApp extends StatelessWidget {
               auth.isAuthenticated ? const MainShell() : const LoginScreen(),
         ),
         routes: {
-          '/login': (_) => const LoginScreen(),
           '/signup': (_) => const SignUpScreen(),
           '/details': (_) => const ItemDetailsScreen(),
         },

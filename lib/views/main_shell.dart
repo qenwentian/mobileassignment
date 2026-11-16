@@ -98,10 +98,8 @@ class _ProfileScreen extends StatelessWidget {
           const SizedBox(height: 20),
           ElevatedButton(
             onPressed: () {
+              context.read<NavViewModel>().reset();
               context.read<AuthViewModel>().logout();
-              Navigator.of(
-                context,
-              ).pushNamedAndRemoveUntil('/login', (r) => false);
             },
             child: const Text('Log out'),
           ),

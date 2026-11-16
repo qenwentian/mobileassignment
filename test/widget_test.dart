@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/main.dart';
 import 'package:mobile_app/models/item_model.dart';
@@ -7,10 +8,9 @@ import 'package:mobile_app/services/item_service.dart';
 import 'package:mobile_app/viewmodels/items_viewmodel.dart';
 
 Future<void> login(WidgetTester tester) async {
-  await tester.enterText(find.byType(TextField).at(0), 'student@example.edu');
+  await tester.enterText(find.byType(TextField).at(0), 'demo@univ.edu');
   await tester.enterText(find.byType(TextField).at(1), 'campus123');
-  await tester.tap(find.text('Log in'));
-  await tester.pump(const Duration(seconds: 1));
+  await tester.tap(find.text('Sign In'));
   await tester.pumpAndSettle();
 }
 
@@ -18,23 +18,89 @@ void main() {
   testWidgets('FINDER starts at the login screen', (tester) async {
     await tester.pumpWidget(const FinderApp());
     expect(find.text('FINDER'), findsOneWidget);
-    expect(find.text('Log in'), findsOneWidget);
+    expect(find.text('Sign In'), findsOneWidget);
   });
 
   testWidgets('empty login input displays a helpful error', (tester) async {
     await tester.pumpWidget(const FinderApp());
-    await tester.tap(find.text('Log in'));
+    await tester.tap(find.text('Sign In'));
     await tester.pump();
-    expect(find.text('Enter a valid email address.'), findsOneWidget);
+    expect(find.text('Enter your campus email'), findsOneWidget);
   });
 
-  testWidgets('valid simulated login opens the main application', (
+  testWidgets('demo login opens the main application', (
     tester,
   ) async {
     await tester.pumpWidget(const FinderApp());
     await login(tester);
     expect(find.text('Campus Lost & Found'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
+  });
+
+  testWidgets('registered account can sign in again after logging out', (
+    tester,
+  ) async {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    const channel = MethodChannel('finder/accounts');
+    const user = {
+      'id': 'local-1',
+      'studentId': '2026-10203',
+      'name': 'Jamie Student',
+      'email': 'jamie@univ.edu',
+    };
+    var registered = false;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'register') {
+        expect(
+            call.arguments,
+            {...user}
+              ..remove('id')
+              ..['password'] = 'demo456');
+        registered = true;
+        return user;
+      }
+      return registered &&
+              call.arguments['email'] == user['email'] &&
+              call.arguments['password'] == 'demo456'
+          ? user
+          : null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    await tester.pumpWidget(const FinderApp());
+    await tester.tap(find.text('Need an account? Register'));
+    await tester.pumpAndSettle();
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), '2026-10203');
+    await tester.enterText(fields.at(1), 'Jamie Student');
+    await tester.enterText(fields.at(2), 'Jamie@univ.edu');
+    await tester.enterText(fields.at(3), 'demo456');
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.enterText(fields, '654321');
+    await tester.tap(find.text('Confirm Code'));
+    await tester.pumpAndSettle();
+    expect(find.text('Invalid verification code.'), findsOneWidget);
+    expect(registered, isFalse);
+    await tester.enterText(fields, '123456');
+    await tester.tap(find.text('Confirm Code'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Profile'));
+    await tester.pumpAndSettle();
+    expect(find.text('Jamie Student'), findsOneWidget);
+    await tester.tap(find.text('Log out'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(fields.at(0), 'JAMIE@univ.edu');
+    await tester.enterText(fields.at(1), 'incorrect');
+    await tester.tap(find.text('Sign In'));
+    await tester.pumpAndSettle();
+    expect(find.text('Incorrect email or password.'), findsOneWidget);
+    await tester.enterText(fields.at(1), 'demo456');
+    await tester.tap(find.text('Sign In'));
+    await tester.pumpAndSettle();
+    expect(find.text('Campus Lost & Found'), findsOneWidget);
   });
 
   testWidgets('item card opens details and directions focus the map', (
@@ -59,7 +125,7 @@ void main() {
     await tester.ensureVisible(find.text('Publish Lost Report'));
     await tester.tap(find.text('Publish Lost Report'));
     await tester.pumpAndSettle();
-    expect(find.text('Enter the item name.'), findsOneWidget);
+    expect(find.text('Enter the item name'), findsOneWidget);
     expect(find.text('Choose a category'), findsOneWidget);
     expect(find.text('Choose a building'), findsOneWidget);
   });
@@ -105,7 +171,7 @@ void main() {
     expect(find.text('Active posts: 1'), findsOneWidget);
     await tester.tap(find.text('Log out'));
     await tester.pumpAndSettle();
-    expect(find.text('Log in'), findsOneWidget);
+    expect(find.text('Sign In'), findsOneWidget);
   });
 
   test('sample items have unique IDs and valid statuses', () {

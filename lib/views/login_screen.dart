@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
 import '../theme.dart';
 import '../viewmodels/auth_viewmodel.dart';
 
@@ -39,8 +40,8 @@ class _LoginScreenState extends State<LoginScreen> {
           Padding(
             padding: EdgeInsets.only(right: 16),
             child: Center(
-                child: Text('Login',
-                    style: TextStyle(color: AppColors.accent))),
+                child:
+                    Text('Login', style: TextStyle(color: AppColors.accent))),
           ),
         ],
       ),
@@ -93,8 +94,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   TextButton(
-                    onPressed: () => Navigator.pushNamed(context, '/signup'),
+                    onPressed: auth.loading
+                        ? null
+                        : () => Navigator.pushNamed(context, '/signup'),
                     child: const Text('Need an account? Register'),
+                  ),
+                  TextButton(
+                    onPressed: auth.loading
+                        ? null
+                        : () => auth.login(
+                            AuthService.demoEmail, AuthService.demoPassword),
+                    child: const Text('Use demo account'),
                   ),
                 ],
               ),

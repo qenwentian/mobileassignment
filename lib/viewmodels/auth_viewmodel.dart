@@ -48,6 +48,7 @@ class AuthViewModel extends ChangeNotifier {
 
   // ---- Actions ----
   Future<bool> login(String email, String password) async {
+    if (_loading) return false;
     _begin();
     try {
       _user = await _service.login(email.trim(), password);
@@ -60,37 +61,30 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  Future<bool> startRegistration({
+  void startRegistration({
     required String studentId,
     required String name,
     required String email,
-    required String password,
-  }) async {
-    _begin();
-    try {
-      await _service.sendVerificationCode(email.trim());
-      _pending = {
-        'studentId': studentId.trim(),
-        'name': name.trim(),
-        'email': email.trim(),
-      };
-      _step = RegistrationStep.verify;
-      _loading = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _fail(e);
-      return false;
-    }
+  }) {
+    _pending = {
+      'studentId': studentId.trim(),
+      'name': name.trim(),
+      'email': email.trim(),
+    };
+    _error = null;
+    _step = RegistrationStep.verify;
+    notifyListeners();
   }
 
-  Future<bool> verifyCode(String code) async {
+  Future<bool> verifyCode(String code, String password) async {
+    if (_loading || _step != RegistrationStep.verify) return false;
     _begin();
     try {
       _user = await _service.verifyAndRegister(
         studentId: _pending['studentId']!,
         name: _pending['name']!,
         email: _pending['email']!,
+        password: password,
         code: code.trim(),
       );
       resetRegistration(notify: false);

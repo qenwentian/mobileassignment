@@ -20,8 +20,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-        (_) => context.read<AuthViewModel>().resetRegistration());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<AuthViewModel>().resetRegistration();
+    });
   }
 
   @override
@@ -32,18 +33,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
-  Future<void> _sendCode() async {
+  void _continue() {
     if (!_form.currentState!.validate()) return;
-    await context.read<AuthViewModel>().startRegistration(
+    context.read<AuthViewModel>().startRegistration(
           studentId: _studentId.text,
           name: _name.text,
           email: _email.text,
-          password: _password.text,
         );
   }
 
   Future<void> _confirm() async {
-    final ok = await context.read<AuthViewModel>().verifyCode(_code.text);
+    final ok = await context.read<AuthViewModel>().verifyCode(
+          _code.text,
+          _password.text,
+        );
     // Authenticated: drop Sign Up so the root (now MainShell/Feed) shows.
     if (ok && mounted) Navigator.of(context).popUntil((r) => r.isFirst);
   }
@@ -87,7 +90,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
           TextFormField(
             controller: _email,
             keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(hintText: 'Campus Email (@univ.edu)'),
+            decoration:
+                const InputDecoration(hintText: 'Campus Email (@univ.edu)'),
             validator: auth.validateEmail,
           ),
           const SizedBox(height: 12),
@@ -103,13 +107,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
           ],
           const SizedBox(height: 20),
           ElevatedButton(
-            onPressed: auth.loading ? null : _sendCode,
-            child: auth.loading
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Verify 2FA Email'),
+            onPressed: auth.loading ? null : _continue,
+            child: const Text('Continue'),
           ),
         ],
       ),
@@ -120,7 +119,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('Enter the 6-digit code we emailed you.',
+        const Text('Enter the demo code to save your account on this device.',
             style: TextStyle(color: AppColors.muted)),
         const SizedBox(height: 4),
         Text('Demo code: ${auth.demoCode}',
@@ -143,6 +142,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   height: 22,
                   child: CircularProgressIndicator(strokeWidth: 2))
               : const Text('Confirm Code'),
+        ),
+        TextButton(
+          onPressed: auth.loading ? null : () => auth.resetRegistration(),
+          child: const Text('Edit account details'),
         ),
       ],
     );
