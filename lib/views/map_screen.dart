@@ -13,6 +13,17 @@ class MapScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      const minHeight = 500.0;
+      final content = _buildContent(context);
+      if (constraints.maxHeight >= minHeight) return content;
+      return SingleChildScrollView(
+        child: SizedBox(height: minHeight, child: content),
+      );
+    });
+  }
+
+  Widget _buildContent(BuildContext context) {
     final items = context.watch<ItemsViewModel>();
     final nav = context.watch<NavViewModel>();
     final selected = items.pinById(nav.selectedPinId);

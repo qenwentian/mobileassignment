@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/main.dart';
 import 'package:mobile_app/models/item_model.dart';
 import 'package:mobile_app/models/user_model.dart';
+import 'package:mobile_app/services/auth_service.dart';
 import 'package:mobile_app/services/item_service.dart';
+import 'package:mobile_app/viewmodels/auth_viewmodel.dart';
 import 'package:mobile_app/viewmodels/items_viewmodel.dart';
 
 Future<void> login(WidgetTester tester) async {
@@ -15,6 +17,28 @@ Future<void> login(WidgetTester tester) async {
 }
 
 void main() {
+  test('campus email validation accepts international education domains', () {
+    final auth = AuthViewModel(AuthService());
+    for (final email in [
+      'alex@school.edu',
+      '  Jamie.Olsen+demo@apps.USJR.EDU.PH ',
+      'student@school.edu.au',
+      'student@school.ac.uk',
+    ]) {
+      expect(auth.validateEmail(email), isNull, reason: email);
+    }
+    for (final email in [
+      'student@gmail.com',
+      'student@usjr.edu,ph',
+      'student@usjr.edu.ph.example.com',
+      'student@-school.edu',
+      'student@.edu',
+      'first..last@school.edu',
+    ]) {
+      expect(auth.validateEmail(email), isNotNull, reason: email);
+    }
+  });
+
   testWidgets('FINDER starts at the login screen', (tester) async {
     await tester.pumpWidget(const FinderApp());
     expect(find.text('FINDER'), findsOneWidget);
@@ -47,7 +71,7 @@ void main() {
       'id': 'local-1',
       'studentId': '2026-10203',
       'name': 'Jamie Student',
-      'email': 'jamie@univ.edu',
+      'email': 'jamie@usjr.edu.ph',
     };
     var registered = false;
     messenger.setMockMethodCallHandler(channel, (call) async {
@@ -74,7 +98,7 @@ void main() {
     final fields = find.byType(TextField);
     await tester.enterText(fields.at(0), '2026-10203');
     await tester.enterText(fields.at(1), 'Jamie Student');
-    await tester.enterText(fields.at(2), 'Jamie@univ.edu');
+    await tester.enterText(fields.at(2), 'Jamie@usjr.edu.ph');
     await tester.enterText(fields.at(3), 'demo456');
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
@@ -92,7 +116,7 @@ void main() {
     await tester.tap(find.text('Log out'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(fields.at(0), 'JAMIE@univ.edu');
+    await tester.enterText(fields.at(0), 'JAMIE@usjr.edu.ph');
     await tester.enterText(fields.at(1), 'incorrect');
     await tester.tap(find.text('Sign In'));
     await tester.pumpAndSettle();
@@ -120,6 +144,23 @@ void main() {
       return image is AssetImage && image.assetName == 'assets/campus_map.png';
     }), findsOneWidget);
     expect(find.text('Lab 302'), findsOneWidget);
+  });
+
+  testWidgets('map pins and route control are reachable in landscape',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(720, 360));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const FinderApp());
+    await login(tester);
+    await tester.tap(find.text('Map'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Library'));
+    await tester.pumpAndSettle();
+    expect(find.text('Main Library, 2nd Fl'), findsOneWidget);
+    await tester.ensureVisible(find.text('Preview Route'));
+    await tester.tap(find.text('Preview Route'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('report form rejects empty required fields', (tester) async {

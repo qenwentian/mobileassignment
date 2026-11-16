@@ -90,8 +90,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           TextFormField(
             controller: _email,
             keyboardType: TextInputType.emailAddress,
-            decoration:
-                const InputDecoration(hintText: 'Campus Email (@univ.edu)'),
+            decoration: const InputDecoration(hintText: 'Campus Email'),
             validator: auth.validateEmail,
           ),
           const SizedBox(height: 12),

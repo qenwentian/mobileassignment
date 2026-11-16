@@ -22,10 +22,17 @@ class AuthViewModel extends ChangeNotifier {
   String get demoCode => AuthService.demoCode;
 
   // ---- Validation (kept out of the widgets) ----
-  static final _emailRe = RegExp(r'^[\w.+-]+@univ\.edu$', caseSensitive: false);
+  static const _emailAtom = r"[a-z0-9!#$%&'*+/=?^_`{|}~-]+";
+  static final _emailRe = RegExp(
+    '^$_emailAtom(?:\\.$_emailAtom)*@'
+    r'(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+'
+    r'(?:edu(?:\.[a-z]{2})?|ac\.[a-z]{2})$',
+    caseSensitive: false,
+  );
   String? validateEmail(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Enter your campus email';
-    if (!_emailRe.hasMatch(v.trim())) return 'Use your @univ.edu email';
+    final email = v?.trim() ?? '';
+    if (email.isEmpty) return 'Enter your campus email';
+    if (!_emailRe.hasMatch(email)) return 'Use a valid campus email';
     return null;
   }
 
