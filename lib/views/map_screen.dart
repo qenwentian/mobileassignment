@@ -23,9 +23,11 @@ class MapScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Found Items Map',
+          const Text('Campus locations',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
+          const Text('Demo campus map',
+              style: TextStyle(color: AppColors.muted)),
+          const SizedBox(height: 10),
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
@@ -33,18 +35,20 @@ class MapScreen extends StatelessWidget {
                 final w = c.maxWidth, h = c.maxHeight;
                 return Stack(children: [
                   Positioned.fill(
-                    child: CustomPaint(
-                      painter: _MapPainter(
-                        route: nav.routeVisible && selected != null
-                            ? [
-                                Offset(_userDx * w, _userDy * h),
-                                Offset(selected.dx * w, _userDy * h),
-                                Offset(selected.dx * w, selected.dy * h),
-                              ]
-                            : null,
+                    child:
+                        Image.asset('assets/campus_map.png', fit: BoxFit.fill),
+                  ),
+                  if (nav.routeVisible && selected != null)
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _RoutePainter([
+                          Offset(_userDx * w, _userDy * h),
+                          Offset(_userDx * w, 0.45 * h),
+                          Offset(selected.dx * w, 0.45 * h),
+                          Offset(selected.dx * w, selected.dy * h),
+                        ]),
                       ),
                     ),
-                  ),
                   Positioned(
                     left: _userDx * w - 8,
                     top: _userDy * h - 8,
@@ -52,7 +56,7 @@ class MapScreen extends StatelessWidget {
                       width: 16,
                       height: 16,
                       decoration: BoxDecoration(
-                        color: AppColors.found,
+                        color: AppColors.accent,
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                       ),
@@ -61,9 +65,10 @@ class MapScreen extends StatelessWidget {
                   for (final p in items.pins)
                     Positioned(
                       left: p.dx * w - 60,
-                      top: p.dy * h - 46,
+                      bottom: (1 - p.dy) * h,
                       width: 120,
                       child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: () => nav.selectPin(p.id),
                         child: _PinMarker(
                           label: p.id,
@@ -112,7 +117,7 @@ class MapScreen extends StatelessWidget {
           const SizedBox(height: 12),
           ElevatedButton(
             onPressed: selected == null ? null : nav.showRoute,
-            child: const Text('Get Directions'),
+            child: const Text('Preview Route'),
           ),
         ],
       ),
@@ -137,8 +142,11 @@ class _PinMarker extends StatelessWidget {
           color: active ? AppColors.accent : AppColors.surfaceAlt,
           borderRadius: BorderRadius.circular(6),
         ),
-        child: Text(active ? '$label Pin Active' : label,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+        child: Text(label,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w600)),
       ),
       Stack(clipBehavior: Clip.none, children: [
         Icon(Icons.location_on, size: active ? 34 : 28, color: color),
@@ -158,36 +166,18 @@ class _PinMarker extends StatelessWidget {
   }
 }
 
-class _MapPainter extends CustomPainter {
-  _MapPainter({this.route});
-  final List<Offset>? route;
+class _RoutePainter extends CustomPainter {
+  _RoutePainter(this.route);
+  final List<Offset> route;
 
   @override
   void paint(Canvas canvas, Size s) {
-    canvas.drawRect(Offset.zero & s, Paint()..color = const Color(0xFF16202D));
-    // River
-    canvas.drawRect(Rect.fromLTWH(s.width * 0.9, 0, s.width * 0.1, s.height),
-        Paint()..color = const Color(0xFF0C3B5C));
-    // Quad
-    canvas.drawOval(
-        Rect.fromLTWH(s.width * 0.38, s.height * 0.05, s.width * 0.3, s.height * 0.18),
-        Paint()..color = const Color(0xFF14532D).withValues(alpha: 0.55));
-    // Roads
-    final road = Paint()
-      ..color = const Color(0xFF243247)
-      ..strokeWidth = 14;
-    canvas.drawLine(Offset(0, s.height * 0.75), Offset(s.width * 0.9, s.height * 0.75), road);
-    canvas.drawLine(Offset(s.width * 0.5, 0), Offset(s.width * 0.5, s.height), road);
-    canvas.drawLine(Offset(0, s.height * 0.42), Offset(s.width * 0.9, s.height * 0.42), road);
-
-    final r = route;
-    if (r == null) return;
-    final path = Path()..moveTo(r.first.dx, r.first.dy);
-    for (final p in r.skip(1)) {
+    final path = Path()..moveTo(route.first.dx, route.first.dy);
+    for (final p in route.skip(1)) {
       path.lineTo(p.dx, p.dy);
     }
     final dash = Paint()
-      ..color = AppColors.accent
+      ..color = const Color(0xFF097AD2)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4
       ..strokeCap = StrokeCap.round;
@@ -199,5 +189,5 @@ class _MapPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _MapPainter old) => old.route != route;
+  bool shouldRepaint(covariant _RoutePainter old) => old.route != route;
 }

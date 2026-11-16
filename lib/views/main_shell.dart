@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../theme.dart';
 import '../viewmodels/auth_viewmodel.dart';
 import '../viewmodels/nav_viewmodel.dart';
 import 'feed_screen.dart';
+import 'map_screen.dart';
 import 'report_screen.dart';
 import '../viewmodels/items_viewmodel.dart';
 
@@ -14,7 +14,7 @@ class MainShell extends StatelessWidget {
     final nav = context.watch<NavViewModel>();
     final pages = [
       const FeedScreen(),
-      const _MapScreen(),
+      const MapScreen(),
       const ReportScreen(),
       const _ProfileScreen(),
     ];
@@ -40,39 +40,6 @@ class MainShell extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _MapScreen extends StatelessWidget {
-  const _MapScreen();
-  @override
-  Widget build(BuildContext context) {
-    final vm = context.watch<ItemsViewModel>();
-    final nav = context.watch<NavViewModel>();
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const Text(
-          'Campus locations',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        const Text('Map directions are a demo view of campus pins.'),
-        for (final pin in vm.pins)
-          Card(
-            child: ListTile(
-              leading: Icon(
-                nav.selectedPinId == pin.id
-                    ? Icons.location_on
-                    : Icons.place,
-                color: AppColors.accent,
-              ),
-              title: Text(pin.id),
-              subtitle: Text(pin.room),
-            ),
-          ),
-      ],
     );
   }
 }

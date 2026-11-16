@@ -115,6 +115,11 @@ void main() {
     await tester.tap(find.text('Directions'));
     await tester.pumpAndSettle();
     expect(find.text('Campus locations'), findsOneWidget);
+    expect(find.byWidgetPredicate((widget) {
+      final image = widget is Image ? widget.image : null;
+      return image is AssetImage && image.assetName == 'assets/campus_map.png';
+    }), findsOneWidget);
+    expect(find.text('Lab 302'), findsOneWidget);
   });
 
   testWidgets('report form rejects empty required fields', (tester) async {
