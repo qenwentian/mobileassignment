@@ -304,7 +304,8 @@ void main() {
     await tester.tap(find.text('Profile'));
     await tester.pumpAndSettle();
     expect(find.text('Jamie Student'), findsOneWidget);
-    await tester.tap(find.text('Log out'));
+    await tester.ensureVisible(find.text('[ LOG OUT ]'));
+    await tester.tap(find.text('[ LOG OUT ]'));
     await tester.pumpAndSettle();
 
     await tester.enterText(fields.at(0), 'JAMIE@usjr.edu.ph');
@@ -407,8 +408,9 @@ void main() {
     await login(tester);
     await tester.tap(find.text('Profile'));
     await tester.pumpAndSettle();
-    expect(find.text('Active posts: 1'), findsOneWidget);
-    await tester.tap(find.text('Log out'));
+    expect(find.text('Active Posts (1)'), findsOneWidget);
+    await tester.ensureVisible(find.text('[ LOG OUT ]'));
+    await tester.tap(find.text('[ LOG OUT ]'));
     await tester.pumpAndSettle();
     expect(find.text('Sign In'), findsOneWidget);
   });
