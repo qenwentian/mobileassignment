@@ -1,5 +1,4 @@
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -28,19 +27,14 @@ Future<void> main() async {
 }
 
 Future<void> initializeFirebase() async {
-  if (DefaultFirebaseOptions.isConfigured) {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  } else if (!kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.android ||
-          defaultTargetPlatform == TargetPlatform.iOS)) {
-    await Firebase.initializeApp();
-  } else {
+  if (!DefaultFirebaseOptions.isConfigured) {
     throw StateError(
-      'Configure Firebase in lib/firebase_options.dart (or run flutterfire configure) before starting FINDER.',
+      'Configure Firebase in lib/firebase_options.dart before starting FINDER on Android.',
     );
   }
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 }
 
 class FinderApp extends StatelessWidget {
