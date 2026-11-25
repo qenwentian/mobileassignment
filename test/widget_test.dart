@@ -1,5 +1,6 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/main.dart';
 import 'package:mobile_app/models/item_model.dart';
@@ -9,16 +10,162 @@ import 'package:mobile_app/services/item_service.dart';
 import 'package:mobile_app/viewmodels/auth_viewmodel.dart';
 import 'package:mobile_app/viewmodels/items_viewmodel.dart';
 
-Future<void> login(WidgetTester tester) async {
-  await tester.enterText(find.byType(TextField).at(0), 'demo@univ.edu');
-  await tester.enterText(find.byType(TextField).at(1), 'campus123');
+class FakeAuthService extends AuthService {
+  FakeAuthService({List<({UserModel user, String password})>? seedUsers}) {
+    final initial = seedUsers ??
+        [
+          (
+            user: const UserModel(
+              id: 'u1',
+              studentId: '2024-88392',
+              name: 'Alex Student',
+              email: AuthService.demoEmail,
+              role: UserRole.normal,
+            ),
+            password: AuthService.demoPassword,
+          ),
+          (
+            user: const UserModel(
+              id: 'admin-1',
+              studentId: '2020-00001',
+              name: 'Campus Admin',
+              email: 'admin@univ.edu',
+              role: UserRole.admin,
+            ),
+            password: 'admin123',
+          ),
+        ];
+    for (final entry in initial) {
+      final email = entry.user.email.toLowerCase();
+      _profiles[entry.user.id] = entry.user.copyWith(email: email);
+      _passwords[email] = entry.password;
+      _emailToUid[email] = entry.user.id;
+    }
+  }
+
+  final Map<String, UserModel> _profiles = {};
+  final Map<String, String> _passwords = {};
+  final Map<String, String> _emailToUid = {};
+  final StreamController<String?> _uidController =
+      StreamController<String?>.broadcast();
+  final StreamController<void> _profileChanges =
+      StreamController<void>.broadcast();
+
+  String? _currentUid;
+  int _nextId = 1;
+  String? lastPasswordResetEmail;
+
+  @override
+  bool get hasCurrentUser => _currentUid != null;
+
+  @override
+  Stream<String?> authUidChanges() => _uidController.stream;
+
+  @override
+  Stream<UserModel?> watchUserProfile(String uid) {
+    return Stream<UserModel?>.multi((controller) {
+      controller.add(_profiles[uid]);
+      final sub = _profileChanges.stream.listen((_) {
+        controller.add(_profiles[uid]);
+      });
+      controller.onCancel = sub.cancel;
+    });
+  }
+
+  @override
+  Future<UserModel> login(String email, String password) async {
+    final normalized = email.trim().toLowerCase();
+    final uid = _emailToUid[normalized];
+    if (uid == null || _passwords[normalized] != password) {
+      throw Exception('Incorrect email or password.');
+    }
+    _currentUid = uid;
+    _uidController.add(uid);
+    return _profiles[uid]!;
+  }
+
+  @override
+  Future<UserModel> verifyAndRegister({
+    required String studentId,
+    required String name,
+    required String email,
+    required String password,
+    required String code,
+  }) async {
+    if (code != AuthService.demoCode) {
+      throw Exception('Invalid verification code.');
+    }
+    final normalized = email.trim().toLowerCase();
+    final trimmedStudentId = studentId.trim();
+    if (_emailToUid.containsKey(normalized) ||
+        _profiles.values.any((u) => u.studentId == trimmedStudentId)) {
+      throw Exception('An account already uses that email or student ID.');
+    }
+    final uid = 'local-${_nextId++}';
+    final user = UserModel(
+      id: uid,
+      studentId: trimmedStudentId,
+      name: name.trim(),
+      email: normalized,
+      role: UserRole.normal,
+    );
+    _profiles[uid] = user;
+    _passwords[normalized] = password;
+    _emailToUid[normalized] = uid;
+    _currentUid = uid;
+    _uidController.add(uid);
+    _profileChanges.add(null);
+    return user;
+  }
+
+  @override
+  Future<void> sendPasswordResetEmail(String email) async {
+    lastPasswordResetEmail = email.trim().toLowerCase();
+  }
+
+  @override
+  Future<void> logout() async {
+    _currentUid = null;
+    _uidController.add(null);
+  }
+
+  @override
+  Stream<List<UserModel>> watchAllUsers() {
+    List<UserModel> sorted() => _profiles.values.toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return Stream<List<UserModel>>.multi((controller) {
+      controller.add(sorted());
+      final sub = _profileChanges.stream.listen((_) {
+        controller.add(sorted());
+      });
+      controller.onCancel = sub.cancel;
+    });
+  }
+
+  @override
+  Future<void> updateUserRole(String uid, UserRole role) async {
+    final existing = _profiles[uid];
+    if (existing == null) throw Exception('User not found.');
+    _profiles[uid] = existing.copyWith(role: role);
+    _profileChanges.add(null);
+  }
+}
+
+Future<void> login(
+  WidgetTester tester, {
+  String email = 'demo@univ.edu',
+  String password = 'campus123',
+}) async {
+  await tester.enterText(find.byType(TextField).at(0), email);
+  await tester.enterText(find.byType(TextField).at(1), password);
   await tester.tap(find.text('Sign In'));
   await tester.pumpAndSettle();
 }
 
 void main() {
   test('campus email validation accepts international education domains', () {
-    final auth = AuthViewModel(AuthService());
+    final auth = AuthViewModel(FakeAuthService());
+    addTearDown(auth.dispose);
     for (final email in [
       'alex@school.edu',
       '  Jamie.Olsen+demo@apps.USJR.EDU.PH ',
@@ -39,23 +186,95 @@ void main() {
     }
   });
 
+  test('UserModel parses roles and serializes to Firestore format', () {
+    final admin = UserModel.fromMap('u-admin', {
+      'studentId': '2020-00001',
+      'name': 'Admin User',
+      'email': 'admin@univ.edu',
+      'role': 'admin',
+    });
+    expect(admin.role, UserRole.admin);
+    expect(admin.isAdmin, isTrue);
+    expect(admin.toFirestore(), {
+      'studentId': '2020-00001',
+      'name': 'Admin User',
+      'email': 'admin@univ.edu',
+      'role': 'admin',
+    });
+
+    for (final raw in ['normal', 'other', null]) {
+      final user = UserModel.fromMap('u-norm', {
+        'studentId': '2024-00001',
+        'name': 'Normal User',
+        'email': 'user@univ.edu',
+        'role': raw,
+      });
+      expect(user.role, UserRole.normal);
+      expect(user.isAdmin, isFalse);
+    }
+  });
+
+  test('normal user cannot update user roles via AuthViewModel', () async {
+    final fakeAuth = FakeAuthService();
+    final vm = AuthViewModel(fakeAuth);
+    addTearDown(vm.dispose);
+
+    final ok = await vm.login(AuthService.demoEmail, AuthService.demoPassword);
+    expect(ok, isTrue);
+    expect(vm.isAdmin, isFalse);
+    expect(vm.role, UserRole.normal);
+
+    final err = await vm.updateUserRole('admin-1', UserRole.normal);
+    expect(err, 'Admin access required.');
+  });
+
+  test('admin can update another user role but cannot self-demote', () async {
+    final fakeAuth = FakeAuthService();
+    final vm = AuthViewModel(fakeAuth);
+    addTearDown(vm.dispose);
+
+    final ok = await vm.login('admin@univ.edu', 'admin123');
+    expect(ok, isTrue);
+    expect(vm.isAdmin, isTrue);
+    expect(vm.role, UserRole.admin);
+
+    final selfErr = await vm.updateUserRole('admin-1', UserRole.normal);
+    expect(selfErr, 'You cannot remove your own admin role.');
+
+    final updateErr = await vm.updateUserRole('u1', UserRole.admin);
+    expect(updateErr, isNull);
+
+    final users = await vm.watchAllUsers().first;
+    final promoted = users.firstWhere((u) => u.id == 'u1');
+    expect(promoted.role, UserRole.admin);
+    expect(promoted.isAdmin, isTrue);
+  });
+
+  test('sendPasswordReset forwards normalized email to AuthService', () async {
+    final fakeAuth = FakeAuthService();
+    final vm = AuthViewModel(fakeAuth);
+    addTearDown(vm.dispose);
+
+    final err = await vm.sendPasswordReset('  Student@USJR.EDU.PH ');
+    expect(err, isNull);
+    expect(fakeAuth.lastPasswordResetEmail, 'student@usjr.edu.ph');
+  });
+
   testWidgets('FINDER starts at the login screen', (tester) async {
-    await tester.pumpWidget(const FinderApp());
+    await tester.pumpWidget(FinderApp(authService: FakeAuthService()));
     expect(find.text('FINDER'), findsOneWidget);
     expect(find.text('Sign In'), findsOneWidget);
   });
 
   testWidgets('empty login input displays a helpful error', (tester) async {
-    await tester.pumpWidget(const FinderApp());
+    await tester.pumpWidget(FinderApp(authService: FakeAuthService()));
     await tester.tap(find.text('Sign In'));
     await tester.pump();
     expect(find.text('Enter your campus email'), findsOneWidget);
   });
 
-  testWidgets('demo login opens the main application', (
-    tester,
-  ) async {
-    await tester.pumpWidget(const FinderApp());
+  testWidgets('demo login opens the main application', (tester) async {
+    await tester.pumpWidget(FinderApp(authService: FakeAuthService()));
     await login(tester);
     expect(find.text('Campus Lost & Found'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
@@ -64,35 +283,8 @@ void main() {
   testWidgets('registered account can sign in again after logging out', (
     tester,
   ) async {
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    const channel = MethodChannel('finder/accounts');
-    const user = {
-      'id': 'local-1',
-      'studentId': '2026-10203',
-      'name': 'Jamie Student',
-      'email': 'jamie@usjr.edu.ph',
-    };
-    var registered = false;
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      if (call.method == 'register') {
-        expect(
-            call.arguments,
-            {...user}
-              ..remove('id')
-              ..['password'] = 'demo456');
-        registered = true;
-        return user;
-      }
-      return registered &&
-              call.arguments['email'] == user['email'] &&
-              call.arguments['password'] == 'demo456'
-          ? user
-          : null;
-    });
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-
-    await tester.pumpWidget(const FinderApp());
+    final fakeAuth = FakeAuthService();
+    await tester.pumpWidget(FinderApp(authService: fakeAuth));
     await tester.tap(find.text('Need an account? Register'));
     await tester.pumpAndSettle();
     final fields = find.byType(TextField);
@@ -106,7 +298,6 @@ void main() {
     await tester.tap(find.text('Confirm Code'));
     await tester.pumpAndSettle();
     expect(find.text('Invalid verification code.'), findsOneWidget);
-    expect(registered, isFalse);
     await tester.enterText(fields, '123456');
     await tester.tap(find.text('Confirm Code'));
     await tester.pumpAndSettle();
@@ -130,7 +321,7 @@ void main() {
   testWidgets('item card opens details and directions focus the map', (
     tester,
   ) async {
-    await tester.pumpWidget(const FinderApp());
+    await tester.pumpWidget(FinderApp(authService: FakeAuthService()));
     await login(tester);
     await tester.tap(find.text('MacBook Pro'));
     await tester.pumpAndSettle();
@@ -146,11 +337,12 @@ void main() {
     expect(find.text('Lab 302'), findsOneWidget);
   });
 
-  testWidgets('map pins and route control are reachable in landscape',
-      (tester) async {
+  testWidgets('map pins and route control are reachable in landscape', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(720, 360));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(const FinderApp());
+    await tester.pumpWidget(FinderApp(authService: FakeAuthService()));
     await login(tester);
     await tester.tap(find.text('Map'));
     await tester.pumpAndSettle();
@@ -164,7 +356,7 @@ void main() {
   });
 
   testWidgets('report form rejects empty required fields', (tester) async {
-    await tester.pumpWidget(const FinderApp());
+    await tester.pumpWidget(FinderApp(authService: FakeAuthService()));
     await login(tester);
     await tester.tap(find.text('Report').last);
     await tester.pumpAndSettle();
@@ -177,7 +369,7 @@ void main() {
   });
 
   testWidgets('valid report appears in the feed', (tester) async {
-    await tester.pumpWidget(const FinderApp());
+    await tester.pumpWidget(FinderApp(authService: FakeAuthService()));
     await login(tester);
     await tester.tap(find.text('Report').last);
     await tester.pumpAndSettle();
@@ -209,8 +401,9 @@ void main() {
     expect(find.text('Campus Lost & Found'), findsOneWidget);
     expect(find.text('Red backpack'), findsOneWidget);
   });
+
   testWidgets('logout returns to login', (tester) async {
-    await tester.pumpWidget(const FinderApp());
+    await tester.pumpWidget(FinderApp(authService: FakeAuthService()));
     await login(tester);
     await tester.tap(find.text('Profile'));
     await tester.pumpAndSettle();

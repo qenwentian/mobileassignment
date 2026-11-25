@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
@@ -5,23 +7,33 @@ import '../services/auth_service.dart';
 enum RegistrationStep { details, verify }
 
 class AuthViewModel extends ChangeNotifier {
-  AuthViewModel(this._service);
+  AuthViewModel(this._service) {
+    _initializing = _service.hasCurrentUser;
+    _authSub = _service.authUidChanges().listen(_onAuthUidChanged);
+  }
+
   final AuthService _service;
+  StreamSubscription<String?>? _authSub;
+  StreamSubscription<UserModel?>? _profileSub;
+  String? _listeningUid;
 
   UserModel? _user;
+  bool _initializing = false;
   bool _loading = false;
   String? _error;
   RegistrationStep _step = RegistrationStep.details;
   Map<String, String> _pending = {};
 
   UserModel? get user => _user;
+  UserRole get role => _user?.role ?? UserRole.normal;
+  bool get isAdmin => _user?.isAdmin ?? false;
   bool get isAuthenticated => _user != null;
+  bool get initializing => _initializing;
   bool get loading => _loading;
   String? get error => _error;
   RegistrationStep get step => _step;
   String get demoCode => AuthService.demoCode;
 
-  // ---- Validation (kept out of the widgets) ----
   static const _emailAtom = r"[a-z0-9!#$%&'*+/=?^_`{|}~-]+";
   static final _emailRe = RegExp(
     '^$_emailAtom(?:\\.$_emailAtom)*@'
@@ -29,6 +41,7 @@ class AuthViewModel extends ChangeNotifier {
     r'(?:edu(?:\.[a-z]{2})?|ac\.[a-z]{2})$',
     caseSensitive: false,
   );
+
   String? validateEmail(String? v) {
     final email = v?.trim() ?? '';
     if (email.isEmpty) return 'Enter your campus email';
@@ -53,12 +66,50 @@ class AuthViewModel extends ChangeNotifier {
     return null;
   }
 
-  // ---- Actions ----
+  void _onAuthUidChanged(String? uid) {
+    if (uid == null) {
+      _profileSub?.cancel();
+      _profileSub = null;
+      _listeningUid = null;
+      _user = null;
+      _initializing = false;
+      notifyListeners();
+      return;
+    }
+    if (_listeningUid == uid && _profileSub != null) return;
+    _listeningUid = uid;
+    _profileSub?.cancel();
+    _profileSub = _service.watchUserProfile(uid).listen(
+      (profile) {
+        if (profile == null) {
+          // Ignore transient null snapshots while login/registration is writing the profile.
+          if (!_loading) {
+            _user = null;
+            _initializing = false;
+            notifyListeners();
+          }
+          return;
+        }
+        _user = profile;
+        _initializing = false;
+        notifyListeners();
+      },
+      onError: (Object error) {
+        _initializing = false;
+        if (!_loading) {
+          _error = _cleanError(error);
+        }
+        notifyListeners();
+      },
+    );
+  }
+
   Future<bool> login(String email, String password) async {
     if (_loading) return false;
     _begin();
     try {
       _user = await _service.login(email.trim(), password);
+      _initializing = false;
       _loading = false;
       notifyListeners();
       return true;
@@ -95,6 +146,7 @@ class AuthViewModel extends ChangeNotifier {
         code: code.trim(),
       );
       resetRegistration(notify: false);
+      _initializing = false;
       _loading = false;
       notifyListeners();
       return true;
@@ -111,10 +163,44 @@ class AuthViewModel extends ChangeNotifier {
     if (notify) notifyListeners();
   }
 
-  void logout() {
+  Future<String?> sendPasswordReset(String email) async {
+    try {
+      await _service.sendPasswordResetEmail(email);
+      return null;
+    } catch (e) {
+      return _cleanError(e);
+    }
+  }
+
+  Stream<List<UserModel>> watchAllUsers() => _service.watchAllUsers();
+
+  Future<String?> updateUserRole(String uid, UserRole role) async {
+    if (!isAdmin) return 'Admin access required.';
+    if (uid == _user?.id && role != UserRole.admin) {
+      return 'You cannot remove your own admin role.';
+    }
+    try {
+      await _service.updateUserRole(uid, role);
+      return null;
+    } catch (e) {
+      return _cleanError(e);
+    }
+  }
+
+  Future<void> logout() async {
+    _profileSub?.cancel();
+    _profileSub = null;
+    _listeningUid = null;
     _user = null;
     _error = null;
+    _initializing = false;
     notifyListeners();
+    try {
+      await _service.logout();
+    } catch (e) {
+      _error = _cleanError(e);
+      notifyListeners();
+    }
   }
 
   void _begin() {
@@ -125,7 +211,16 @@ class AuthViewModel extends ChangeNotifier {
 
   void _fail(Object e) {
     _loading = false;
-    _error = e.toString().replaceFirst('Exception: ', '');
+    _error = _cleanError(e);
     notifyListeners();
+  }
+
+  String _cleanError(Object e) => e.toString().replaceFirst('Exception: ', '');
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    _profileSub?.cancel();
+    super.dispose();
   }
 }
