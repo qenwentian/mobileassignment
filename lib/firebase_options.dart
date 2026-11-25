@@ -14,14 +14,14 @@ class DefaultFirebaseOptions {
   static const String _envStorageBucket =
       String.fromEnvironment('FIREBASE_STORAGE_BUCKET');
 
-  static const String _apiKey = 'YOUR_API_KEY';
-  static const String _androidAppId = 'YOUR_ANDROID_APP_ID';
+  static const String _apiKey = 'AIzaSyAGWnSY3ukODNY4fDnz-BLkHdupRzoCfxw';
+  static const String _androidAppId = '1:754430121551:android:6c75a4263fd54260a53c3a';
   static const String _webAppId = 'YOUR_WEB_APP_ID';
   static const String _iosAppId = 'YOUR_IOS_APP_ID';
-  static const String _messagingSenderId = 'YOUR_MESSAGING_SENDER_ID';
-  static const String _projectId = 'YOUR_PROJECT_ID';
-  static const String _authDomain = 'YOUR_AUTH_DOMAIN';
-  static const String _storageBucket = 'YOUR_STORAGE_BUCKET';
+  static const String _messagingSenderId = '754430121551';
+  static const String _projectId = 'mobile-5aac8';
+  static const String _authDomain = 'mobile-5aac8.firebaseapp.com';
+  static const String _storageBucket = 'mobile-5aac8.firebasestorage.app';
 
   static String _pick(String env, String fallback) =>
       env.isNotEmpty ? env : fallback;
