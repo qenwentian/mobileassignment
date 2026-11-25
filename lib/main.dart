@@ -1,7 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -17,8 +14,6 @@ import 'views/login_screen.dart';
 import 'views/main_shell.dart';
 import 'views/signup_screen.dart';
 
-const bool _useEmulators = bool.fromEnvironment('USE_FIREBASE_EMULATORS');
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
@@ -32,30 +27,14 @@ Future<void> main() async {
 }
 
 Future<void> initializeFirebase() async {
-  if (DefaultFirebaseOptions.isConfigured) {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  } else if (!kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.android ||
-          defaultTargetPlatform == TargetPlatform.iOS)) {
-    await Firebase.initializeApp();
-  } else {
+  if (!DefaultFirebaseOptions.isConfigured) {
     throw StateError(
-      'Configure Firebase in lib/firebase_options.dart (or run flutterfire configure) before starting FINDER.',
+      'Configure Firebase in lib/firebase_options.dart before starting FINDER on Android.',
     );
   }
-
-  if (_useEmulators) {
-    const configuredHost = String.fromEnvironment('FIREBASE_EMULATOR_HOST');
-    final host = configuredHost.isNotEmpty
-        ? configuredHost
-        : !kIsWeb && defaultTargetPlatform == TargetPlatform.android
-            ? '10.0.2.2'
-            : '127.0.0.1';
-    await FirebaseAuth.instance.useAuthEmulator(host, 9099);
-    FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
-  }
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 }
 
 class FinderApp extends StatelessWidget {

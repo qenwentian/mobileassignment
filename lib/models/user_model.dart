@@ -8,8 +8,8 @@ enum UserRole {
   final String value;
   final String label;
 
-  static UserRole fromValue(String? raw) =>
-      raw == 'admin' ? UserRole.admin : UserRole.normal;
+  static UserRole fromValue(String? firestoreRole) =>
+      firestoreRole == 'admin' ? UserRole.admin : UserRole.normal;
 }
 
 class UserModel {
