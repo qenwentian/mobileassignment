@@ -13,6 +13,10 @@ class ItemModel {
   final bool hasPhoto;
   final String? claimedBy;
 
+  /// True once an admin approved the pending claim and the item was handed
+  /// back to its owner. Returned items are hidden from the public feed/map.
+  final bool isReturned;
+
   const ItemModel({
     required this.id,
     required this.name,
@@ -25,11 +29,17 @@ class ItemModel {
     required this.ownerId,
     this.hasPhoto = false,
     this.claimedBy,
+    this.isReturned = false,
   });
 
   bool get isClaimed => claimedBy != null;
 
-  ItemModel copyWith({String? claimedBy}) => ItemModel(
+  ItemModel copyWith({
+    String? claimedBy,
+    bool clearClaim = false,
+    bool? isReturned,
+  }) =>
+      ItemModel(
         id: id,
         name: name,
         description: description,
@@ -40,7 +50,8 @@ class ItemModel {
         postedAt: postedAt,
         ownerId: ownerId,
         hasPhoto: hasPhoto,
-        claimedBy: claimedBy ?? this.claimedBy,
+        claimedBy: clearClaim ? null : (claimedBy ?? this.claimedBy),
+        isReturned: isReturned ?? this.isReturned,
       );
 
   String get timeAgo {

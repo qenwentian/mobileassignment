@@ -9,6 +9,18 @@ class AuthService {
   static const demoEmail = 'demo@univ.edu';
   static const demoPassword = 'campus123';
 
+  /// Built-in administrator. The account is created in Firebase Auth +
+  /// Firestore the first time these credentials are used to sign in, and the
+  /// email is reserved so nobody can register it as a normal student.
+  /// Change the password after the first login (see README).
+  static const builtInAdminEmail = 'admin@univ.edu';
+  static const builtInAdminPassword = 'admin123';
+  static const builtInAdminName = 'Campus Admin';
+  static const builtInAdminStudentId = '2020-00001';
+
+  static bool isBuiltInAdminEmail(String? email) =>
+      (email ?? '').trim().toLowerCase() == builtInAdminEmail;
+
   AuthService({FirebaseAuth? auth, FirebaseFirestore? firestore})
       : _authOverride = auth,
         _dbOverride = firestore;
@@ -46,10 +58,19 @@ class AuthService {
   Future<UserModel> login(String email, String password) async {
     final normalizedEmail = email.trim().toLowerCase();
     try {
-      final credential = await _auth.signInWithEmailAndPassword(
-        email: normalizedEmail,
-        password: password,
-      );
+      final credential = await _signIn(normalizedEmail, password);
+      if (credential == null) {
+        // Built-in admin credentials were used but the account does not exist yet.
+        try {
+          return await _provisionBuiltInAdmin();
+        } on FirebaseAuthException catch (error) {
+          // The email exists with a different password (e.g. it was changed).
+          if (error.code == 'email-already-in-use') {
+            throw Exception('Incorrect email or password.');
+          }
+          rethrow;
+        }
+      }
       final firebaseUser = credential.user;
       if (firebaseUser == null) {
         throw Exception('Incorrect email or password.');
@@ -57,6 +78,58 @@ class AuthService {
       return await _ensureUserProfile(firebaseUser);
     } catch (error) {
       throw _mapError(error);
+    }
+  }
+
+  /// Signs in. Returns null only when the built-in admin credentials were
+  /// supplied and no such account exists yet, so it can be provisioned.
+  Future<UserCredential?> _signIn(String email, String password) async {
+    try {
+      return await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } on FirebaseAuthException catch (error) {
+      final missing =
+          error.code == 'invalid-credential' || error.code == 'user-not-found';
+      if (missing &&
+          email == builtInAdminEmail &&
+          password == builtInAdminPassword) {
+        return null;
+      }
+      rethrow;
+    }
+  }
+
+  Future<UserModel> _provisionBuiltInAdmin() async {
+    final credential = await _auth.createUserWithEmailAndPassword(
+      email: builtInAdminEmail,
+      password: builtInAdminPassword,
+    );
+    final firebaseUser = credential.user;
+    if (firebaseUser == null) {
+      throw Exception('Could not create the admin account.');
+    }
+    try {
+      await firebaseUser.updateDisplayName(builtInAdminName);
+      final profile = UserModel(
+        id: firebaseUser.uid,
+        studentId: builtInAdminStudentId,
+        name: builtInAdminName,
+        email: builtInAdminEmail,
+        role: UserRole.admin,
+      );
+      await _users.doc(firebaseUser.uid).set({
+        ...profile.toFirestore(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return profile;
+    } catch (_) {
+      // Avoid leaving an orphaned Auth user if profile creation fails.
+      try {
+        await firebaseUser.delete();
+      } catch (_) {}
+      rethrow;
     }
   }
 
@@ -68,6 +141,9 @@ class AuthService {
     required String code,
   }) async {
     if (code != demoCode) throw Exception('Invalid verification code.');
+    if (isBuiltInAdminEmail(email)) {
+      throw Exception('That email address is reserved.');
+    }
     final normalizedEmail = email.trim().toLowerCase();
     final trimmedName = name.trim();
     final trimmedStudentId = studentId.trim();
@@ -160,7 +236,7 @@ class AuthService {
       studentId: '',
       name: clampedName,
       email: email,
-      role: UserRole.normal,
+      role: isBuiltInAdminEmail(email) ? UserRole.admin : UserRole.normal,
     );
     await docRef.set({
       ...profile.toFirestore(),

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
@@ -105,6 +106,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             AuthService.demoEmail, AuthService.demoPassword),
                     child: const Text('Use demo account'),
                   ),
+                  // Debug builds only: never ship a one-tap admin login.
+                  if (kDebugMode)
+                    TextButton(
+                      onPressed: auth.loading
+                          ? null
+                          : () => auth.login(AuthService.builtInAdminEmail,
+                              AuthService.builtInAdminPassword),
+                      child: const Text('Use admin account (debug)'),
+                    ),
                 ],
               ),
             ),

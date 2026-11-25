@@ -32,9 +32,30 @@ Campus Lost & Found Flutter app using MVVM (`provider`), **Firebase Authenticati
        "FIREBASE_AUTH_DOMAIN": "your-project-id.firebaseapp.com"
      }
      ```
-5. **Create the first Admin account**:
-   - Register a user through the app (all self-registered accounts are enforced as `role: "normal"` by `firestore.rules`).
-   - In the Firebase Console, open **Firestore Database -> `users/{uid}`** and change `role` from `"normal"` to `"admin"`.
+5. **Built-in Admin account**:
+   - Deploy the updated `firestore.rules` (`firebase deploy --only firestore:rules`).
+   - Sign in once with the built-in admin credentials. The account is created in Firebase Auth and
+     Firestore automatically on first sign-in (debug builds also show a **Use admin account (debug)** button).
+
+     | Email | Password |
+     | --- | --- |
+     | `admin@univ.edu` | `admin123` |
+
+   - Do this right after deploying the rules, then **change the password** (Firebase Console -> Authentication, or
+     use "forgot password"), because the default is stored in the app source (`AuthService.builtInAdminPassword`).
+   - `admin@univ.edu` is reserved: it cannot be registered as a normal account and other admins cannot demote it.
+   - To make any other user an admin, use **Admin -> Manage Users** in the app.
+
+## Admin features
+
+Admins get an extra **Admin** tab with:
+
+- **Dashboard**: user, admin, post, claim, lost and found counts.
+- **Manage Users**: search and filter accounts; promote to Admin or demote to Normal (you cannot change your own role).
+- **Moderate Items**: filter posts; approve a pending claim (marks the item *Returned* and hides it from the feed/map),
+  reject a claim, or delete a post.
+
+Note: items are still stored in memory (`ItemsViewModel`), so moderation changes last for the current app session only.
 
 ## Local Firebase Emulators (Optional)
 

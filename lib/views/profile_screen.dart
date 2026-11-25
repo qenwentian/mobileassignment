@@ -5,6 +5,7 @@ import '../theme.dart';
 import '../viewmodels/auth_viewmodel.dart';
 import '../viewmodels/items_viewmodel.dart';
 import '../viewmodels/nav_viewmodel.dart';
+import 'widgets/admin_badge.dart';
 import 'widgets/item_card.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -55,6 +56,10 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 4),
             Text('ID: ${user?.studentId ?? ''}',
                 style: const TextStyle(color: AppColors.muted)),
+            if (user?.isAdmin ?? false) ...[
+              const SizedBox(height: 8),
+              const AdminBadge(),
+            ],
           ]),
         ),
         const SizedBox(height: 12),

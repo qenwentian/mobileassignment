@@ -459,4 +459,80 @@ void main() {
     expect(vm.byId('i1')!.isClaimed, isTrue);
     expect(vm.claim('i1', user), 'A claim is already pending.');
   });
+
+  test('built-in admin email is reserved and passes campus validation', () {
+    expect(AuthService.isBuiltInAdminEmail('  ADMIN@univ.edu '), isTrue);
+    expect(AuthService.isBuiltInAdminEmail(AuthService.demoEmail), isFalse);
+    final auth = AuthViewModel(FakeAuthService());
+    addTearDown(auth.dispose);
+    expect(auth.validateEmail(AuthService.builtInAdminEmail), isNull);
+  });
+
+  test('item moderation is admin-only and handles claims', () {
+    final vm = ItemsViewModel(ItemService());
+    const admin = UserModel(
+      id: 'admin-1',
+      studentId: '2020-00001',
+      name: 'Campus Admin',
+      email: 'admin@univ.edu',
+      role: UserRole.admin,
+    );
+    const student = UserModel(
+      id: 'u1',
+      studentId: '1',
+      name: 'Demo',
+      email: 'demo@univ.edu',
+    );
+
+    expect(vm.deleteItem('i1', student), 'Admin access required.');
+    expect(vm.byId('i1'), isNotNull);
+
+    expect(vm.claim('i1', student), isNull);
+    expect(vm.pendingClaimCount, 1);
+    expect(vm.rejectClaim('i1', admin), isNull);
+    expect(vm.byId('i1')!.isClaimed, isFalse);
+    expect(vm.pendingClaimCount, 0);
+    expect(vm.rejectClaim('i1', admin), 'There is no pending claim.');
+
+    expect(vm.claim('i1', student), isNull);
+    expect(vm.approveClaim('i1', admin), isNull);
+    expect(vm.byId('i1')!.isReturned, isTrue);
+    expect(vm.pendingClaimCount, 0);
+    expect(vm.filtered.any((i) => i.id == 'i1'), isFalse);
+    expect(vm.itemsAt('Geology Bldg').any((i) => i.id == 'i1'), isFalse);
+
+    expect(vm.deleteItem('i2', admin), isNull);
+    expect(vm.byId('i2'), isNull);
+    expect(vm.deleteItem('i2', admin), 'Item not found.');
+  });
+
+  testWidgets('normal users do not get an Admin tab', (tester) async {
+    await tester.pumpWidget(FinderApp(authService: FakeAuthService()));
+    await login(tester);
+    expect(find.text('Admin'), findsNothing);
+  });
+
+  testWidgets('built-in admin can open the console and manage users', (
+    tester,
+  ) async {
+    await tester.pumpWidget(FinderApp(authService: FakeAuthService()));
+    await login(
+      tester,
+      email: AuthService.builtInAdminEmail,
+      password: AuthService.builtInAdminPassword,
+    );
+    await tester.tap(find.text('Admin'));
+    await tester.pumpAndSettle();
+    expect(find.text('Admin Console'), findsOneWidget);
+
+    await tester.tap(find.text('Manage Users'));
+    await tester.pumpAndSettle();
+    expect(find.text('Alex Student'), findsOneWidget);
+
+    await tester.tap(find.text('Make admin'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Make admin').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Alex Student is now an admin.'), findsOneWidget);
+  });
 }

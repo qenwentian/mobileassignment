@@ -66,9 +66,11 @@ class ItemDetailsScreen extends StatelessWidget {
                       StatusTag(item.status),
                       if (item.isClaimed) ...[
                         const SizedBox(width: 8),
-                        const Text(
-                          'Claim pending',
-                          style: TextStyle(color: AppColors.accent),
+                        Text(
+                          item.isReturned
+                              ? 'Returned to owner'
+                              : 'Claim pending',
+                          style: const TextStyle(color: AppColors.accent),
                         ),
                       ],
                     ],
@@ -145,7 +147,13 @@ class ItemDetailsScreen extends StatelessWidget {
                                 ),
                               );
                             },
-                      child: Text(item.isClaimed ? 'Claim Sent' : 'Claim Item'),
+                      child: Text(
+                        item.isReturned
+                            ? 'Returned'
+                            : item.isClaimed
+                                ? 'Claim Sent'
+                                : 'Claim Item',
+                      ),
                     ),
                   ),
                 ],

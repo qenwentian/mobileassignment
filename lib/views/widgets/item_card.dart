@@ -49,10 +49,11 @@ class ItemCard extends StatelessWidget {
                 StatusTag(item.status),
                 if (item.isClaimed) ...[
                   const SizedBox(width: 8),
-                  const Text(
-                    'CLAIM PENDING',
+                  Text(
+                    item.isReturned ? 'RETURNED' : 'CLAIM PENDING',
                     style: TextStyle(
-                      color: AppColors.accent,
+                      color:
+                          item.isReturned ? AppColors.found : AppColors.accent,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),

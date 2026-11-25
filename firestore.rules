@@ -17,6 +17,20 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // The built-in admin (see AuthService.builtInAdminEmail). Only this
+    // Auth account may create its own profile with role 'admin', and other
+    // admins cannot demote it, so the app can never be left without an admin.
+    function builtInAdminEmail() {
+      return 'admin@univ.edu';
+    }
+
+    function isBuiltInAdminAuth() {
+      return isSignedIn() &&
+        'email' in request.auth.token &&
+        request.auth.token.email is string &&
+        request.auth.token.email.lower() == builtInAdminEmail();
+    }
+
     function hasExactFields(data, fields) {
       return data.keys().hasOnly(fields) && data.keys().hasAll(fields);
     }
@@ -50,10 +64,14 @@ service cloud.firestore {
       allow get: if isOwner(uid) || isAdmin();
       allow list: if isAdmin();
 
-      // Bind new accounts to the caller's auth email, force 'normal' role, and enforce server time.
+      // Bind new accounts to the caller's auth email, force 'normal' role (except the
+      // built-in admin's own profile), and enforce server time.
       allow create: if isOwner(uid) &&
         isValidUser(request.resource.data) &&
-        request.resource.data.role == 'normal' &&
+        (
+          request.resource.data.role == 'normal' ||
+          (request.resource.data.role == 'admin' && isBuiltInAdminAuth())
+        ) &&
         matchesAuthEmail(request.resource.data.email) &&
         request.resource.data.createdAt == request.time;
 
@@ -66,6 +84,7 @@ service cloud.firestore {
         ) || (
           uid != request.auth.uid &&
           isAdmin() &&
+          resource.data.email.lower() != builtInAdminEmail() &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
         )
       ) && isValidUser(request.resource.data);

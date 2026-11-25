@@ -29,7 +29,7 @@ class ItemsViewModel extends ChangeNotifier {
           i.name.toLowerCase().contains(q) ||
           i.description.toLowerCase().contains(q) ||
           i.locationDetail.toLowerCase().contains(q);
-      return catOk && qOk;
+      return !i.isReturned && catOk && qOk;
     }).toList()
       ..sort((a, b) => b.postedAt.compareTo(a.postedAt));
     return list;
@@ -49,11 +49,14 @@ class ItemsViewModel extends ChangeNotifier {
     return null;
   }
 
-  List<ItemModel> itemsAt(String buildingId) =>
-      _items.where((i) => i.buildingId == buildingId).toList();
+  List<ItemModel> itemsAt(String buildingId) => _items
+      .where((i) => i.buildingId == buildingId && !i.isReturned)
+      .toList();
 
   List<ItemModel> activePostsOf(UserModel? u) =>
-      u == null ? [] : _items.where((i) => i.ownerId == u.id).toList();
+      u == null
+          ? []
+          : _items.where((i) => i.ownerId == u.id && !i.isReturned).toList();
 
   List<ItemModel> claimHistoryOf(UserModel? u) =>
       u == null ? [] : _items.where((i) => i.claimedBy == u.id).toList();
@@ -98,6 +101,57 @@ class ItemsViewModel extends ChangeNotifier {
       ..._items,
     ];
     notifyListeners();
+  }
+
+  // ---- Admin moderation ----
+  // Every method re-checks the actor's role so a non-admin can never trigger
+  // these, even if a screen is wired up incorrectly.
+
+  /// Claims waiting for an admin decision.
+  int get pendingClaimCount =>
+      _items.where((i) => i.isClaimed && !i.isReturned).length;
+
+  String? _requireAdmin(UserModel? actor) =>
+      (actor?.isAdmin ?? false) ? null : 'Admin access required.';
+
+  /// Permanently removes a post. Returns an error message, or null on success.
+  String? deleteItem(String itemId, UserModel? actor) {
+    final denied = _requireAdmin(actor);
+    if (denied != null) return denied;
+    if (byId(itemId) == null) return 'Item not found.';
+    _items = _items.where((i) => i.id != itemId).toList();
+    notifyListeners();
+    return null;
+  }
+
+  /// Clears a pending claim so someone else can claim the item again.
+  String? rejectClaim(String itemId, UserModel? actor) {
+    final denied = _requireAdmin(actor);
+    if (denied != null) return denied;
+    final item = byId(itemId);
+    if (item == null) return 'Item not found.';
+    if (!item.isClaimed || item.isReturned) return 'There is no pending claim.';
+    _items = [
+      for (final i in _items)
+        if (i.id == itemId) i.copyWith(clearClaim: true) else i
+    ];
+    notifyListeners();
+    return null;
+  }
+
+  /// Verifies the claim: marks the item as returned to the claimant.
+  String? approveClaim(String itemId, UserModel? actor) {
+    final denied = _requireAdmin(actor);
+    if (denied != null) return denied;
+    final item = byId(itemId);
+    if (item == null) return 'Item not found.';
+    if (!item.isClaimed || item.isReturned) return 'There is no pending claim.';
+    _items = [
+      for (final i in _items)
+        if (i.id == itemId) i.copyWith(isReturned: true) else i
+    ];
+    notifyListeners();
+    return null;
   }
 
   /// Returns an error message, or null on success.
